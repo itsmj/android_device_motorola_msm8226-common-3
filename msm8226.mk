@@ -264,7 +264,7 @@ PRODUCT_PACKAGES += \
     wificond
 
 # ADB
-ADDITIONAL_DEFAULT_PROPERTIES += \
+PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
     ro.secure=0 \
     ro.allow.mock.location=1 \
     ro.debuggable=1 \
