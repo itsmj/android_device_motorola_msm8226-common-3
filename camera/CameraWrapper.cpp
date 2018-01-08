@@ -26,6 +26,7 @@
 #include <cutils/log.h>
 #include <cutils/properties.h>
 
+#include <android-base/properties.h>
 #include <utils/threads.h>
 #include <utils/String8.h>
 #include <hardware/hardware.h>
@@ -63,6 +64,18 @@ static int camera_get_camera_info(int camera_id, struct camera_info *info);
 
 static char videoHfr[4] = "off";
 
+const char KEY_QC_SUPPORTED_DENOISE[] = "denoise-values";
+const char KEY_QC_SUPPORTED_FACE_DETECTION[] = "face-detection-values";
+const char KEY_QC_SUPPORTED_HFR_SIZES[] = "hfr-size-values";
+const char KEY_QC_SUPPORTED_REDEYE_REDUCTION[] = "redeye-reduction-values";
+const char KEY_QC_SUPPORTED_TOUCH_AF_AEC[] = "touch-af-aec-values";
+const char KEY_QC_SUPPORTED_VIDEO_HIGH_FRAME_RATE_MODES[] = "video-hfr-values";
+const char KEY_QC_SUPPORTED_ZSL_MODES[] = "zsl-values";
+const char KEY_QC_VIDEO_HIGH_FRAME_RATE[] = "video-hfr";
+const char KEY_QC_ZSL[] = "zsl";
+
+using android::base::GetProperty;
+
 static struct hw_module_methods_t camera_module_methods = {
     .open = camera_device_open
 };
@@ -91,19 +104,18 @@ camera_module_t HAL_MODULE_INFO_SYM = {
 
 static int get_product_device()
 {
-    char value[PROPERTY_VALUE_MAX];
-
     if (product_device != UNKNOWN)
         return product_device;
 
-    property_get("ro.product.device", value, "");
-    if (!strncmp(value, "falcon", 6))
+    std::string device = GetProperty("ro.product.device", "");
+
+    if (device == "falcon")
         product_device = FALCON;
-    else if (!strncmp(value, "peregrine", 9))
+    else if (device == "peregrine")
         product_device = PEREGRINE;
-    else if (!strncmp(value, "titan", 5))
+    else if (device == "titan")
         product_device = TITAN;
-    else if (!strncmp(value, "thea", 4))
+    else if (device == "thea")
         product_device = THEA;
     else
         product_device = UNKNOWN;
@@ -153,24 +165,24 @@ static char *camera_fixup_getparams(int id, const char *settings)
         params.set(CameraParameters::KEY_SUPPORTED_FLASH_MODES, "auto,on,off,torch");
     }
 
-    params.set(CameraParameters::KEY_QC_SUPPORTED_DENOISE, "denoise-on,denoise-off");
-    params.set(CameraParameters::KEY_QC_SUPPORTED_FACE_DETECTION, "on,off");
-    params.set(CameraParameters::KEY_QC_SUPPORTED_REDEYE_REDUCTION, "enable,disable");
+    params.set(KEY_QC_SUPPORTED_DENOISE, "denoise-on,denoise-off");
+    params.set(KEY_QC_SUPPORTED_FACE_DETECTION, "on,off");
+    params.set(KEY_QC_SUPPORTED_REDEYE_REDUCTION, "enable,disable");
 
     if (get_product_device() == FALCON || get_product_device() == PEREGRINE) {
         if (id == BACK_CAMERA) {
-            params.set(CameraParameters::KEY_QC_SUPPORTED_HFR_SIZES, "1296x728");
-            params.set(CameraParameters::KEY_QC_SUPPORTED_VIDEO_HIGH_FRAME_RATE_MODES, "60,off");
+            params.set(KEY_QC_SUPPORTED_HFR_SIZES, "1296x728");
+            params.set(KEY_QC_SUPPORTED_VIDEO_HIGH_FRAME_RATE_MODES, "60,off");
         }
     } else {
-        params.set(CameraParameters::KEY_QC_SUPPORTED_HFR_SIZES, "1296x728,1296x728,720x480");
-        params.set(CameraParameters::KEY_QC_SUPPORTED_VIDEO_HIGH_FRAME_RATE_MODES, "60,90,120,off");
-        params.set(CameraParameters::KEY_QC_SUPPORTED_ZSL_MODES, "on,off");
+        params.set(KEY_QC_SUPPORTED_HFR_SIZES, "1296x728,1296x728,720x480");
+        params.set(KEY_QC_SUPPORTED_VIDEO_HIGH_FRAME_RATE_MODES, "60,90,120,off");
+        params.set(KEY_QC_SUPPORTED_ZSL_MODES, "on,off");
     }
 
     if (!(get_product_device() == FALCON || get_product_device() == PEREGRINE) ||
             id == BACK_CAMERA) {
-        params.set(CameraParameters::KEY_QC_SUPPORTED_TOUCH_AF_AEC, "touch-on,touch-off");
+        params.set(KEY_QC_SUPPORTED_TOUCH_AF_AEC, "touch-on,touch-off");
         params.set(CameraParameters::KEY_SUPPORTED_SCENE_MODES,
                 "auto,action,portrait,landscape,night,night-portrait,theatre"
                 "candlelight,beach,snow,sunset,steadyphoto,fireworks,sports,party,"
@@ -180,7 +192,7 @@ static char *camera_fixup_getparams(int id, const char *settings)
     /* HFR video recording workaround */
     const char *recordingHint = params.get(CameraParameters::KEY_RECORDING_HINT);
     if (recordingHint && !strcmp(recordingHint, "true")) {
-        params.set(CameraParameters::KEY_QC_VIDEO_HIGH_FRAME_RATE, videoHfr);
+        params.set(KEY_QC_VIDEO_HIGH_FRAME_RATE, videoHfr);
     }
 
 #if !LOG_NDEBUG
@@ -209,14 +221,14 @@ static char *camera_fixup_setparams(int id, const char *settings)
      * vendor call, unless the Motorola camera app is used. Save the value
      * so that we can later return it.
      */
-    const char *hfr = params.get(CameraParameters::KEY_QC_VIDEO_HIGH_FRAME_RATE);
+    const char *hfr = params.get(KEY_QC_VIDEO_HIGH_FRAME_RATE);
     snprintf(videoHfr, sizeof(videoHfr), "%s", hfr ? hfr : "off");
 
     if (get_product_device() == TITAN || get_product_device() == THEA) {
         const char *sceneMode = params.get(CameraParameters::KEY_SCENE_MODE);
         if (sceneMode != NULL) {
             if (!strcmp(sceneMode, CameraParameters::SCENE_MODE_HDR)) {
-                params.remove(CameraParameters::KEY_QC_ZSL);
+                params.remove(KEY_QC_ZSL);
             }
         }
     }
